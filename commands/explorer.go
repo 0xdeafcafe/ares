@@ -11,6 +11,7 @@ import (
 	"gopkg.in/urfave/cli.v1"
 )
 
+// Explorer ..
 type Explorer struct {
 	context          *cli.Context
 	xbdm             *goxbdm.Client
@@ -57,7 +58,7 @@ func (explorer *Explorer) Listen() error {
 			}
 			break
 
-		case "cs":
+		case "cd":
 
 			break
 		}
