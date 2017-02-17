@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/0xdeafcafe/ares/helpers"
+	"github.com/0xdeafcafe/ares/models"
 	goxbdm "github.com/0xdeafcafe/go-xbdm"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -17,13 +18,13 @@ type Explorer struct {
 	xbdm             *goxbdm.Client
 	reader           *bufio.Reader
 	currentDirectory string
+	currentFolder    string
+	directoryCache   map[string]*models.DirectoryCache
 }
 
 const (
-	connectionEstablishedFormat = `#### Connection Established with Development Kit
-#### IP Address: %s
-#### Console Debug Name: %s`
-	lineStart = "%s@%s>"
+	connectionEstablishedFormat = "#### Connection Established with Development Kit\n#### IP Address: %s\n#### Console Debug Name: %s"
+	lineStart                   = "%s@%s:%s>"
 )
 
 // StartListening ..
@@ -36,30 +37,66 @@ func (explorer *Explorer) StartListening() {
 // Listen ..
 func (explorer *Explorer) Listen() error {
 	for {
-		fmt.Print(fmt.Sprintf(lineStart, explorer.xbdm.ConsoleIP, explorer.xbdm.ConsoleName()))
+		if explorer.currentDirectory == "" {
+			explorer.currentFolder = "~"
+		} else {
+			//explorer.currentFolder = strings.Split(explorer.currentDirectory, "\\")
+		}
+
+		fmt.Print(fmt.Sprintf(lineStart, explorer.xbdm.ConsoleName(), explorer.xbdm.ConsoleIP, explorer.currentDirectory))
 		input, _ := explorer.reader.ReadString('\n')
 		input = strings.TrimRight(input, "\n")
 
-		switch input {
-		case "exit":
+		switch {
+		case input == "exit":
 			return nil
-		case "clear":
+		case input == "clear":
 			helpers.ClearConsole()
 			break
 
-		case "ls":
+		case input == "ls" && explorer.currentDirectory == "":
 			drives, err := explorer.xbdm.ListDrives()
 			if err != nil {
 				return err
 			}
 
 			for _, drive := range drives {
-				fmt.Println(drive)
+				fmt.Println(drive.Name)
+			}
+			break
+		case input == "ls" && explorer.currentDirectory != "":
+			directoryItems, err := explorer.xbdm.ListDirectory(explorer.currentDirectory)
+			if err != nil {
+				return err
+			}
+
+			for _, directoryItem := range directoryItems {
+				fmt.Println(directoryItem.Name)
 			}
 			break
 
-		case "cd":
+		case strings.HasPrefix(input, "cd "):
+			format := "cd %s"
+			var path string
+			fmt.Sscanf(input, format, &path)
 
+			newCD := ""
+			if explorer.currentDirectory == "" {
+				newCD = fmt.Sprintf("%s:\\", path)
+			} else {
+				newCD = fmt.Sprintf("%s\\%s", explorer.currentDirectory, path)
+			}
+
+			directoryItems, err := explorer.xbdm.ListDirectory(newCD)
+			if err != nil {
+				panic(err)
+			}
+
+			explorer.directoryCache[newCD] = models.NewDirectoryCache(directoryItems)
+			explorer.currentDirectory = newCD
+			break
+		default:
+			fmt.Println("")
 			break
 		}
 	}
@@ -69,7 +106,8 @@ func (explorer *Explorer) Listen() error {
 func NewExplorer(c *cli.Context, ip string) (*Explorer, error) {
 	client := &Explorer{
 		context:          c,
-		currentDirectory: "/",
+		currentDirectory: "",
+		directoryCache:   make(map[string]*models.DirectoryCache),
 	}
 
 	xbdm, err := goxbdm.NewXBDMClient(ip)
