@@ -27,15 +27,7 @@ const (
 	lineStart                   = "%s@%s:%s>"
 )
 
-// StartListening ..
-func (explorer *Explorer) StartListening() {
-	fmt.Println(fmt.Sprintf(connectionEstablishedFormat, explorer.xbdm.ConsoleIP, explorer.xbdm.ConsoleName()))
-	fmt.Println()
-	fmt.Println()
-}
-
-// Listen ..
-func (explorer *Explorer) Listen() error {
+func (explorer *Explorer) listen() error {
 	for {
 		if explorer.currentDirectory == "" {
 			explorer.currentFolder = "~"
@@ -102,8 +94,8 @@ func (explorer *Explorer) Listen() error {
 	}
 }
 
-// NewExplorer ..
-func NewExplorer(c *cli.Context, ip string) (*Explorer, error) {
+func StartExplorer(c *cli.Context) error {
+	ip := c.GlobalString("ip")
 	client := &Explorer{
 		context:          c,
 		currentDirectory: "",
@@ -112,10 +104,15 @@ func NewExplorer(c *cli.Context, ip string) (*Explorer, error) {
 
 	xbdm, err := goxbdm.NewXBDMClient(ip)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	client.reader = bufio.NewReader(os.Stdin)
 	client.xbdm = xbdm
-	return client, nil
+
+	fmt.Println(fmt.Sprintf(connectionEstablishedFormat, client.xbdm.ConsoleIP, client.xbdm.ConsoleName()))
+	fmt.Println()
+	fmt.Println()
+
+	return client.listen()
 }
